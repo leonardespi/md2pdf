@@ -1,3 +1,4 @@
+# .github/workflows/pages.yml
 name: Deploy md2pdf to GitHub Pages
 
 on:
@@ -24,9 +25,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Discover app directory: prefer ./md2pdf if it exists; else repo root (.)
+      # Detect app dir (./md2pdf or repo root)
       - id: appdir
-        name: Detect application directory
         run: |
           if [ -f "./md2pdf/package.json" ]; then
             echo "dir=./md2pdf" >> "$GITHUB_OUTPUT"
@@ -34,34 +34,36 @@ jobs:
             echo "dir=." >> "$GITHUB_OUTPUT"
           fi
           echo "Using app dir: $(cat $GITHUB_OUTPUT)"
-      
+
       - name: Show directory for debugging
         run: |
           echo "App dir is: ${{ steps.appdir.outputs.dir }}"
           ls -la ${{ steps.appdir.outputs.dir }}
-          if [ -f "${{ steps.appdir.outputs.dir }}/package.json" ]; then
-            cat ${{ steps.appdir.outputs.dir }}/package.json | head -n 50
-          fi
 
-      - name: Setup Node
+      - name: Setup Node 16 (compat for webpack 4)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 16
           cache: yarn
           cache-dependency-path: |
             ${{ steps.appdir.outputs.dir }}/yarn.lock
             ${{ steps.appdir.outputs.dir }}/package.json
 
+      - name: Print versions (debug)
+        working-directory: ${{ steps.appdir.outputs.dir }}
+        run: |
+          node -v
+          yarn -v
+          npx react-scripts --version || true
+
       - name: Install dependencies
         working-directory: ${{ steps.appdir.outputs.dir }}
         run: yarn install --frozen-lockfile
 
-      # Create React App build for sub-path (/md2pdf)
       - name: Build (CRA with sub-path)
         working-directory: ${{ steps.appdir.outputs.dir }}
         run: PUBLIC_URL=${{ env.BASE_PATH }} yarn build
 
-      # SPA fallback to support deep links on Pages
       - name: Add 404.html (SPA fallback)
         run: |
           cp ${{ steps.appdir.outputs.dir }}/build/index.html \
@@ -81,4 +83,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-
