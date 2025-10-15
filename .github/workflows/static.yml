@@ -1,0 +1,59 @@
+# .github/workflows/pages.yml
+name: Deploy md2pdf to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+env:
+  PUBLISH_DIR: build
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+        working-directory: ./md2pdf   # remove this line if your package.json is at repo root
+
+      # Build CRA for sub-path deployment
+      - name: Build (CRA with sub-path)
+        run: PUBLIC_URL=/md2pdf yarn build
+        working-directory: ./md2pdf   # remove if at repo root
+
+      # SPA fallback so deep links work
+      - name: Add 404.html
+        run: cp ./md2pdf/build/index.html ./md2pdf/build/404.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./md2pdf/${{ env.PUBLISH_DIR }}  # change to ./build if at repo root
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
